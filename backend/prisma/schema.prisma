@@ -1,0 +1,135 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum MovementType {
+  income
+  expense
+}
+
+enum ExpenseNature {
+  fixed
+  variable
+}
+
+enum Recurrence {
+  none
+  weekly
+  biweekly
+  monthly
+  yearly
+}
+
+model User {
+  id String @id @default(uuid()) @db.Uuid
+  email String @unique
+  passwordHash String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  categories Category[]
+  movements Movement[]
+  budgets Budget[]
+  refreshSessions RefreshSession[]
+  savingsGoals SavingsGoal[]
+}
+
+model RefreshSession {
+  id String @id @default(uuid()) @db.Uuid
+  userId String @db.Uuid
+  tokenHash String
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId, expiresAt])
+}
+
+model Category {
+  id String @id @default(uuid()) @db.Uuid
+  userId String @db.Uuid
+  name String @db.VarChar(60)
+  slug String @db.VarChar(70)
+  isDefault Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  movements Movement[]
+  categoryBudgets CategoryBudget[]
+  @@unique([userId, slug])
+  @@index([userId, name])
+}
+
+model Movement {
+  id String @id @default(uuid()) @db.Uuid
+  userId String @db.Uuid
+  categoryId String @db.Uuid
+  amount Int
+  date DateTime @db.Date
+  description String @db.VarChar(80)
+  notes String? @db.VarChar(240)
+  type MovementType
+  expenseNature ExpenseNature @default(variable)
+  recurrence Recurrence @default(none)
+  recurrenceSourceId String? @db.Uuid
+  recurrenceEnd DateTime? @db.Date
+  recurrencePaused Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  @@index([userId, date(sort: Desc)])
+  @@index([userId, type, date])
+  @@index([userId, categoryId, date])
+  @@index([userId, amount])
+}
+
+model Budget {
+  id String @id @default(uuid()) @db.Uuid
+  userId String @db.Uuid
+  month String @db.Char(7)
+  general Int @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  categories CategoryBudget[]
+  @@unique([userId, month])
+  @@index([userId, month])
+}
+
+model CategoryBudget {
+  id String @id @default(uuid()) @db.Uuid
+  budgetId String @db.Uuid
+  categoryId String @db.Uuid
+  amount Int
+  budget Budget @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  @@unique([budgetId, categoryId])
+  @@index([categoryId])
+}
+
+model SavingsGoal {
+  id String @id @default(uuid()) @db.Uuid
+  userId String @db.Uuid
+  name String @db.VarChar(80)
+  targetAmount Int
+  targetDate DateTime? @db.Date
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contributions SavingsContribution[]
+  @@index([userId])
+}
+
+model SavingsContribution {
+  id String @id @default(uuid()) @db.Uuid
+  goalId String @db.Uuid
+  amount Int
+  date DateTime @db.Date
+  goal SavingsGoal @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  @@index([goalId, date])
+}
